@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Стань выше: бег и бокс</title>
+    <link rel="preload" href="assets/fonts/rubik.ttf" as="font" type="font/ttf" crossorigin>
+    <link rel="icon" type="image/png" href="assets/branding/icon-64.png">
+    <style>
+        @font-face { font-family: 'Rubik'; src: url('assets/fonts/rubik.ttf?v=0.1.8-1dfa851f') format('truetype'); font-weight: 300 900; font-style: normal; font-display: swap; }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #222;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        input, textarea, [contenteditable] { -webkit-user-select: text; user-select: text; }
+        @media (min-aspect-ratio: 2/1) {
+            html { background: #141430; }
+            body { width: 200vh; margin: 0 auto; transform: translateZ(0); }
+        }
+        img { -webkit-user-drag: none; }
+        #world3d {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            outline: none;
+            touch-action: none;
+        }
+        /* ===== Экран загрузки: небо с лучами, шкала-рулетка, растущий Нуб у линейки, советы ===== */
+        #loading-screen {
+            --ink: #1B1B3A; --tape: #FFD23F; --coral: #FF5D73; --sky: #4CC9F0; --violet: #7B61FF; --mint: #2EC4B6; --paper: #FFFBEF;
+            --u: 1vmin; --U: 1vmax;          /* u = 1% меньшей стороны экрана (cqmin, если есть) */
+            --rx: 50%; --ry: 46%;            /* центр солнечных лучей: за героем */
+            --ring: .08em 0 0 var(--ink), .069em .04em 0 var(--ink), .04em .069em 0 var(--ink), 0 .08em 0 var(--ink), -.04em .069em 0 var(--ink), -.069em .04em 0 var(--ink), -.08em 0 0 var(--ink), -.069em -.04em 0 var(--ink), -.04em -.069em 0 var(--ink), 0 -.08em 0 var(--ink), .04em -.069em 0 var(--ink), .069em -.04em 0 var(--ink);
+            --drop: 0 .11em 0 var(--ink), 0 .14em 0 var(--ink), .05em .12em 0 var(--ink), -.05em .12em 0 var(--ink);
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: stretch;
+            justify-content: stretch;
+            overflow: hidden;
+            background: linear-gradient(180deg, #2C9FE6 0%, #4CC9F0 36%, #86E0FF 70%, #BDF0FF 100%);
+            color: var(--ink);
+            font-family: 'Rubik', system-ui, sans-serif;
+            z-index: 1000;
+        }
+        @supports (width: 1cqmin) {
+            #loading-screen { container-type: size; --u: 1cqmin; --U: 1cqmax; }
+        }
+
+        /* --- фон: лучи, сияние, облака, холмы --- */
+        .ld-bg { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+        .ld-glow {
+            position: absolute; left: calc(var(--rx) - var(--u) * 55); top: calc(var(--ry) - var(--u) * 55);
+            width: calc(var(--u) * 110); height: calc(var(--u) * 110);
+            background: radial-gradient(circle, rgba(255, 255, 255, .85) 0, rgba(255, 255, 255, .4) 24%, rgba(255, 255, 255, 0) 62%);
+        }
+        .ld-rays {
+            --R: min(calc(var(--U) * 170), 3000px);
+            position: absolute; left: calc(var(--rx) - var(--R) / 2); top: calc(var(--ry) - var(--R) / 2);
+            width: var(--R); height: var(--R); border-radius: 50%;
+            background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0) 0deg, rgba(255, 255, 255, .34) 1.2deg, rgba(255, 255, 255, .34) 6.3deg, rgba(255, 255, 255, 0) 7.5deg, rgba(255, 255, 255, 0) 15deg);
+            -webkit-mask-image: radial-gradient(circle closest-side, #000 6%, rgba(0, 0, 0, 0) 98%);
+            mask-image: radial-gradient(circle closest-side, #000 6%, rgba(0, 0, 0, 0) 98%);
+            animation: ld-spin 80s linear infinite;
+            will-change: transform;
+        }
+        .ld-cloud { position: absolute; left: 0; width: 100%; height: 0; animation: ld-drift var(--dur, 90s) linear infinite; animation-delay: var(--del, 0s); }
+        .ld-cloud i {
+            --w: calc(var(--u) * var(--s, 24));
+            position: absolute; left: 0; top: 0; width: var(--w); height: calc(var(--w) * .34);
+            border-radius: 999px; background: #fff; opacity: .9;
+            box-shadow: inset 0 calc(var(--w) * -.05) 0 rgba(120, 185, 240, .28);
+        }
+        .ld-cloud i::before, .ld-cloud i::after { content: ''; position: absolute; border-radius: 50%; background: #fff; aspect-ratio: 1; }
+        .ld-cloud i::before { left: 14%; bottom: 40%; width: 40%; }
+        .ld-cloud i::after { left: 46%; bottom: 46%; width: 30%; }
+        .ld-c1 { top: 9%; --s: 26; --dur: 110s; --del: -30s; }
+        .ld-c2 { top: 22%; --s: 17; --dur: 150s; --del: -95s; opacity: .8; }
+        .ld-c3 { top: 63%; --s: 21; --dur: 125s; --del: -70s; }
+        .ld-c4 { top: 76%; --s: 14; --dur: 170s; --del: -12s; opacity: .8; }
+        .ld-hill {
+            position: absolute; bottom: calc(var(--u) * -6); height: calc(var(--u) * 15);
+            border-radius: 50% 50% 0 0 / 100% 100% 0 0; border: max(3px, calc(var(--u) * .4)) solid var(--ink); border-bottom: 0; box-sizing: border-box;
+        }
+        .ld-hill.a { left: -22%; width: 92%; background: #86E3C2; }
+        .ld-hill.b { right: -26%; width: 100%; height: calc(var(--u) * 12); bottom: calc(var(--u) * -5); background: var(--mint); }
+
+        /* --- раскладка: портрет — заголовок, герой, шкала; альбом — герой слева, текст справа --- */
+        .ld-stage {
+            position: relative; flex: 1 1 auto; min-width: 0; min-height: 0;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            grid-template-rows: auto minmax(0, 1fr) auto;
+            grid-template-areas: "head" "hero" "foot";
+            justify-items: center; align-items: center;
+            row-gap: calc(var(--u) * 1.5);
+            padding: max(env(safe-area-inset-top, 0px), calc(var(--u) * 4.5)) max(env(safe-area-inset-right, 0px), calc(var(--u) * 5)) max(env(safe-area-inset-bottom, 0px) + 10px, max(46px, calc(var(--u) * 9))) max(env(safe-area-inset-left, 0px), calc(var(--u) * 5));
+            box-sizing: border-box;
+        }
+        .ld-brand { grid-area: head; max-width: 100%; }
+        .ld-hero { grid-area: hero; position: relative; width: 100%; height: 100%; min-height: 0; }
+        .ld-foot { grid-area: foot; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 1.3); width: min(100%, calc(var(--u) * 92)); }
+        @media (min-aspect-ratio: 5/4) {
+            #loading-screen { --rx: 27%; --ry: 52%; }
+            .ld-stage {
+                grid-template-columns: minmax(0, 9fr) minmax(0, 11fr);
+                grid-template-rows: minmax(0, 1fr) auto auto minmax(0, 1fr);
+                grid-template-areas: "hero ." "hero head" "hero foot" "hero .";
+                column-gap: calc(var(--u) * 3); row-gap: calc(var(--u) * 2.4);
+            }
+            .ld-foot { width: min(100%, calc(var(--u) * 80)); }
+        }
+
+        /* --- заголовок --- */
+        #loading-title {
+            margin: 0; max-width: 100%;
+            font: 900 calc(var(--u) * 13) / 1.02 'Rubik', system-ui, sans-serif;
+            text-transform: uppercase; text-align: center; letter-spacing: .02em;
+            text-wrap: balance; overflow-wrap: anywhere;
+            color: var(--tape); text-shadow: var(--ring), var(--drop);
+            transform-origin: 50% 85%;
+            animation: ld-title 1.8s ease-in-out infinite;
+        }
+        @media (min-aspect-ratio: 5/4) { #loading-title { font-size: calc(var(--u) * 12); } }
+
+        /* --- шкала-рулетка --- */
+        .ld-meter { display: flex; align-items: center; gap: calc(var(--u) * 2); width: 100%; }
+        .loading-bar {
+            flex: 1 1 auto; min-width: 0; position: relative; box-sizing: border-box;
+            height: max(24px, calc(var(--u) * 4.2));
+            border: max(3px, calc(var(--u) * .6)) solid var(--ink);
+            border-radius: max(8px, calc(var(--u) * 1.3));
+            box-shadow: 0 max(3px, calc(var(--u) * .7)) 0 var(--ink);
+            background:
+                repeating-linear-gradient(90deg, rgba(27, 27, 58, .28) 0 2px, transparent 2px calc(var(--u) * 2.2)) 0 0 / 100% 38% no-repeat,
+                var(--paper);
+            overflow: hidden;
+        }
+        .loading-progress {
+            position: relative; height: 100%; width: 0%;
+            background:
+                repeating-linear-gradient(90deg, var(--ink) 0 3px, transparent 3px calc(var(--u) * 11)) 0 0 / 100% 66% no-repeat,
+                repeating-linear-gradient(90deg, var(--ink) 0 2px, transparent 2px calc(var(--u) * 2.2)) 0 0 / 100% 38% no-repeat,
+                linear-gradient(180deg, #FFE27A 0, var(--tape) 55%, #F2B91F 100%);
+            transition: width 0.3s ease;
+        }
+        .loading-progress::after {
+            content: ''; position: absolute; top: 0; bottom: 0; right: 0; width: max(7px, calc(var(--u) * 1.5));
+            background: var(--ink); border-radius: 3px 0 0 3px;
+        }
+        #loading-percent {
+            min-width: 3.4em; text-align: right; flex: 0 0 auto;
+            font: 900 max(19px, calc(var(--u) * 5)) / 1 'Rubik', system-ui, sans-serif; font-variant-numeric: tabular-nums;
+            color: #fff; text-shadow: var(--ring), 0 .1em 0 var(--ink);
+        }
+        .loading-text {
+            font: 800 max(15px, calc(var(--u) * 3.3)) / 1.2 'Rubik', system-ui, sans-serif;
+            color: var(--ink); text-align: center; min-height: 1.2em;
+            text-shadow: 0 1px 0 rgba(255, 255, 255, .55);
+        }
+        #loading-retry {
+            padding: .6em 1.6em; min-height: 44px;
+            border: max(3px, calc(var(--u) * .6)) solid var(--ink); border-radius: 999px;
+            background: var(--tape); color: var(--ink);
+            font: 900 max(18px, calc(var(--u) * 3.8)) 'Rubik', system-ui, sans-serif;
+            cursor: pointer; box-shadow: 0 max(4px, calc(var(--u) * .8)) 0 var(--ink);
+        }
+        #loading-retry[hidden] { display: none; }
+        #loading-retry:active { transform: translateY(2px); box-shadow: 0 2px 0 var(--ink); }
+        #loading-retry:not([hidden]) ~ .ld-tips { display: none; }   /* ошибка: вместо советов — кнопка «Повторить» */
+
+        /* --- советы: пять строк друг на друге, листаются только CSS --- */
+        .ld-tips {
+            position: relative; display: grid; width: 100%; box-sizing: border-box;
+            padding: max(8px, calc(var(--u) * 1.1)) max(14px, calc(var(--u) * 2.6)) max(8px, calc(var(--u) * 1.1)) max(34px, calc(var(--u) * 6));
+            background: var(--paper); border: max(3px, calc(var(--u) * .55)) solid var(--ink);
+            border-radius: max(14px, calc(var(--u) * 2.2)); box-shadow: 0 max(4px, calc(var(--u) * .8)) 0 var(--ink);
+        }
+        .ld-tips::before {
+            content: '!'; position: absolute; left: max(8px, calc(var(--u) * 1.6)); top: 50%;
+            width: max(20px, calc(var(--u) * 3.4)); height: max(20px, calc(var(--u) * 3.4)); margin-top: max(-10px, calc(var(--u) * -1.7));
+            display: flex; align-items: center; justify-content: center; box-sizing: border-box;
+            border: max(2px, calc(var(--u) * .35)) solid var(--ink); border-radius: 50%; background: var(--coral); color: #fff;
+            font: 900 max(13px, calc(var(--u) * 2.3)) / 1 'Rubik', system-ui, sans-serif;
+        }
+        .ld-tips span {
+            grid-area: 1 / 1; align-self: center; text-align: center;
+            font: 700 max(14px, calc(var(--u) * 3.1)) / 1.25 'Rubik', system-ui, sans-serif;
+            opacity: 0; animation: ld-tip 20s linear infinite both;
+        }
+        .ld-tips span:nth-child(2) { animation-delay: 4s; }
+        .ld-tips span:nth-child(3) { animation-delay: 8s; }
+        .ld-tips span:nth-child(4) { animation-delay: 12s; }
+        .ld-tips span:nth-child(5) { animation-delay: 16s; }
+
+        /* --- знак движка: маленький, в углу --- */
+        .engine-mark {
+            position: absolute; z-index: 2;
+            right: max(env(safe-area-inset-right, 0px), calc(var(--u) * 2)); bottom: max(env(safe-area-inset-bottom, 0px), calc(var(--u) * 1.2));
+            width: clamp(30px, calc(var(--u) * 6.5), 72px); height: clamp(30px, calc(var(--u) * 6.5), 72px);
+            object-fit: contain; opacity: .9; pointer-events: none;
+            filter: drop-shadow(0 2px 0 rgba(27, 27, 58, .45));
+        }
+
+        /* --- герой у линейки на подиуме (как модель: худи, джинсы, кеды, волосы, наушники). 1em внутри = одна «клетка» m --- */
+        .ld-world {
+            --m: calc(var(--u) * 1.5);
+            position: absolute; left: 50%; bottom: 1.3em; width: 0; height: 0; font-size: var(--m); --loop: 4.6s;
+        }
+        @supports (width: 1cqmin) {
+            .ld-hero { container-type: size; }
+            .ld-world { --m: max(7px, min(calc(100cqh / 21.5), calc(100cqw / 13.2))); }
+        }
+        .ld-world * { position: absolute; box-sizing: border-box; }
+        .ld-podium {
+            left: -6.6em; bottom: -1.3em; width: 13.2em; height: 2.7em; border-radius: 50%;
+            background: radial-gradient(ellipse at 50% 40%, #B9ABFF 0, #9A86FF 70%); border: .2em solid var(--ink);
+            box-shadow: 0 .55em 0 -.02em #5D44D9, 0 .55em 0 .18em var(--ink);
+        }
+        .ld-ruler {
+            left: -6.5em; bottom: -.2em; width: 3em; height: 17.8em; border: .2em solid var(--ink); border-radius: .5em .5em .3em .3em;
+            background:
+                repeating-linear-gradient(to top, var(--ink) 0 .16em, transparent .16em 5em) right bottom / 52% 100% no-repeat,
+                repeating-linear-gradient(to top, var(--ink) 0 .12em, transparent .12em 1em) right bottom / 30% 100% no-repeat,
+                linear-gradient(90deg, #FFE27A 0, var(--tape) 50%, #F2B91F 100%);
+            box-shadow: .3em .3em 0 var(--ink);
+        }
+        .ld-ruler b { left: .24em; font: 900 1.05em / 1 'Rubik', system-ui, sans-serif; color: var(--ink); }
+        .ld-ruler b:nth-of-type(1) { bottom: 4.36em; }
+        .ld-ruler b:nth-of-type(2) { bottom: 9.12em; }
+        .ld-ruler b:nth-of-type(3) { bottom: 13.89em; }
+        .ld-flag {
+            left: -6.9em; bottom: 10.6em; width: 3.8em; height: .8em; background: var(--coral); border: .16em solid var(--ink); border-radius: .4em;
+            animation: ld-up var(--loop) infinite both;
+        }
+        .ld-noob { left: 1.7em; bottom: 0; width: 0; height: 0; }
+        .ld-leg { bottom: .6em; width: 2em; height: 3em; background: #2F3F66; border: 0 solid var(--ink); border-width: 0 .2em; transform-origin: 50% 100%; animation: ld-legs var(--loop) infinite both; z-index: 1; }
+        .ld-leg.l { left: -2.2em; }
+        .ld-leg.r { left: .2em; }
+        .ld-shoe { bottom: 0; width: 2.5em; height: 1.25em; background: #FAF7F2; border: .2em solid var(--ink); border-radius: 1.1em 1.1em .45em .45em; z-index: 2; overflow: hidden; }
+        .ld-shoe::after { content: ''; left: 0; right: 0; bottom: 0; height: .38em; background: #EF6B5A; border-top: .14em solid var(--ink); }
+        .ld-shoe.l { left: -2.45em; }
+        .ld-shoe.r { left: -.05em; }
+        .ld-torso {
+            left: -2.4em; bottom: 3.3em; width: 4.8em; height: 3.4em; border: 0 solid var(--ink); border-width: 0 .2em; z-index: 3;
+            background: linear-gradient(90deg, rgba(255, 255, 255, .28) 0 16%, transparent 16%), #F0544C;
+            transform-origin: 50% 100%; animation: ld-torso var(--loop) infinite both;
+        }
+        .ld-torso::before { content: ''; left: .55em; right: .55em; top: 0; bottom: 0; border: 0 solid #287444; border-width: 0 .42em; }
+        .ld-torso::after { content: ''; left: 1.62em; top: .2em; width: 1.18em; height: 1.35em; border: 0 solid #FAF6F0; border-width: 0 .2em; border-radius: 0 0 .1em .1em; }
+        .ld-belt { left: -2.4em; bottom: 3em; width: 4.8em; height: .62em; background: #D4403C; border: 0 solid var(--ink); border-width: 0 .2em .2em; border-radius: 0 0 .3em .3em; z-index: 4; animation: ld-belt var(--loop) infinite both; }
+        .ld-arm { left: 2.5em; bottom: 2.6em; width: 1.2em; height: 3em; background: #F0544C; border: 0 solid var(--ink); border-width: 0 .18em; transform-origin: 50% 0; animation: ld-arm var(--loop) infinite both; z-index: 3; }
+        .ld-arm.l { left: -3.7em; }
+        .ld-sleeve { left: 2.2em; bottom: 5.2em; width: 1.8em; height: 1.65em; background: #F0544C; border: .2em solid var(--ink); border-radius: .6em .6em .35em .35em; z-index: 5; animation: ld-up var(--loop) infinite both; }
+        .ld-sleeve.l { left: -4em; }
+        .ld-hand { left: 2.25em; bottom: 2.05em; width: 1.7em; height: 1.7em; background: #F7C8A4; border: .2em solid var(--ink); border-radius: 50%; z-index: 5; animation: ld-hand var(--loop) infinite both; }
+        .ld-hand.l { left: -3.95em; }
+        .ld-head {
+            left: -2.4em; bottom: 6.2em; width: 4.8em; height: 4.8em; background: #F7C8A4; border: .2em solid var(--ink); border-radius: 2.1em; z-index: 6;
+            animation: ld-up var(--loop) infinite both;
+        }
+        .ld-hair { left: -.3em; top: -.55em; width: 5em; height: 1.45em; background: #603A22; border: .16em solid var(--ink); border-radius: 2.4em 2.4em .5em .5em / 1.4em 1.4em .5em .5em; }
+        .ld-tuft { left: .5em; top: -1.5em; width: 1.25em; height: 1.6em; background: #7E502E; border: .16em solid var(--ink); border-radius: 100% 0 100% 0; transform: rotate(-12deg); }
+        .ld-tuft.t2 { left: 1.6em; top: -1.85em; width: 1.3em; height: 1.75em; transform: rotate(14deg); }
+        .ld-tuft.t3 { left: 2.75em; top: -1.45em; width: 1.15em; height: 1.5em; transform: rotate(42deg); }
+        .ld-phones { left: -.3em; top: -1.1em; width: 5em; height: 3.4em; border: .42em solid #36C46E; border-bottom: 0; border-radius: 2.5em 2.5em 0 0 / 2.2em 2.2em 0 0; box-shadow: 0 -.14em 0 var(--ink); }
+        .ld-cup { top: 1.55em; width: 1.05em; height: 1.9em; background: #36C46E; border: .16em solid var(--ink); border-radius: .5em; }
+        .ld-cup.l { left: -.85em; }
+        .ld-cup.r { right: -.85em; }
+        .ld-eye { top: 1.35em; width: 1em; height: 1.5em; background: var(--ink); border-radius: 50%; animation: ld-blink 3.7s infinite; }
+        .ld-eye.l { left: .85em; }
+        .ld-eye.r { left: 2.55em; }
+        .ld-eye::before { content: ''; left: .5em; top: .22em; width: .42em; height: .42em; background: #fff; border-radius: 50%; }
+        .ld-eye::after { content: ''; left: .14em; top: .85em; width: .22em; height: .22em; background: #fff; border-radius: 50%; }
+        .ld-brow { top: .78em; width: 1.05em; height: .24em; background: var(--ink); border-radius: .2em; }
+        .ld-brow.l { left: .7em; transform: rotate(-9deg); }
+        .ld-brow.r { left: 2.65em; transform: rotate(9deg); }
+        .ld-blush { top: 2.75em; width: .95em; height: .55em; background: #FF8FA3; border-radius: 50%; opacity: .8; }
+        .ld-blush.l { left: .12em; }
+        .ld-blush.r { left: 3.33em; }
+        .ld-mouth { left: 1.45em; top: 3em; width: 1.5em; height: .95em; background: #7A1F3D; border: .16em solid var(--ink); border-radius: .2em .2em 1em 1em; overflow: hidden; }
+        .ld-mouth::after { content: ''; left: .25em; bottom: -.18em; width: .85em; height: .55em; background: var(--coral); border-radius: 50%; }
+        .ld-plus {
+            left: 4.1em; bottom: 15em; width: 2.5em; height: 2.5em; display: flex; align-items: center; justify-content: center;
+            background: var(--sky); border: .2em solid var(--ink); border-radius: .7em; box-shadow: 0 .25em 0 var(--ink);
+            opacity: 0; animation: ld-plus var(--loop) infinite both;
+        }
+        .ld-plus::before { content: '+'; font: 900 2em / 1 'Rubik', system-ui, sans-serif; color: #fff; text-shadow: 0 .06em 0 var(--ink); }
+
+        /* --- анимации (только transform / opacity: идут и при занятом основном потоке) --- */
+        @keyframes ld-spin { to { transform: rotate(360deg); } }
+        @keyframes ld-drift { from { transform: translateX(105%); } to { transform: translateX(-45%); } }
+        @keyframes ld-title {
+            0%, 100% { transform: translateY(0) scale(1.03, .95) rotate(-1.2deg); }
+            28% { transform: translateY(-5%) scale(.98, 1.04) rotate(0deg); }
+            50% { transform: translateY(0) scale(1.03, .95) rotate(1.2deg); }
+            78% { transform: translateY(-5%) scale(.98, 1.04) rotate(0deg); }
+        }
+        @keyframes ld-tip {
+            0% { opacity: 0; transform: translateY(40%); }
+            2.5% { opacity: 1; transform: translateY(0); }
+            18% { opacity: 1; transform: translateY(0); }
+            20% { opacity: 0; transform: translateY(-30%); }
+            100% { opacity: 0; transform: translateY(-30%); }
+        }
+        @keyframes ld-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
+        @keyframes ld-plus {
+            0%, 30% { opacity: 0; transform: scale(.3) rotate(-14deg); }
+            38% { opacity: 1; transform: scale(1.2) rotate(6deg); }
+            46%, 66% { opacity: 1; transform: scale(1) rotate(0deg); }
+            76%, 100% { opacity: 0; transform: scale(.8) rotate(0deg); }
+        }
+        @keyframes ld-legs {
+            0% { transform: scaleY(1); }
+            12% { transform: scaleY(0.909); }
+            34% { transform: scaleY(2.365); }
+            44% { transform: scaleY(2.274); }
+            52% { transform: scaleY(2.3); }
+            64% { transform: scaleY(2.3); }
+            84% { transform: scaleY(0.935); }
+            92% { transform: scaleY(1.026); }
+            100% { transform: scaleY(1); }
+        }
+        @keyframes ld-belt {
+            0% { transform: translateY(0em); }
+            12% { transform: translateY(0.273em); }
+            34% { transform: translateY(-4.095em); }
+            44% { transform: translateY(-3.822em); }
+            52% { transform: translateY(-3.9em); }
+            64% { transform: translateY(-3.9em); }
+            84% { transform: translateY(0.195em); }
+            92% { transform: translateY(-0.078em); }
+            100% { transform: translateY(0em); }
+        }
+        @keyframes ld-torso {
+            0% { transform: translateY(0em) scaleY(1); }
+            12% { transform: translateY(0.273em) scaleY(0.951); }
+            34% { transform: translateY(-4.095em) scaleY(1.735); }
+            44% { transform: translateY(-3.822em) scaleY(1.686); }
+            52% { transform: translateY(-3.9em) scaleY(1.7); }
+            64% { transform: translateY(-3.9em) scaleY(1.7); }
+            84% { transform: translateY(0.195em) scaleY(0.965); }
+            92% { transform: translateY(-0.078em) scaleY(1.014); }
+            100% { transform: translateY(0em) scaleY(1); }
+        }
+        @keyframes ld-up {
+            0% { transform: translateY(0em); }
+            12% { transform: translateY(0.44em); }
+            34% { transform: translateY(-6.594em); }
+            44% { transform: translateY(-6.154em); }
+            52% { transform: translateY(-6.28em); }
+            64% { transform: translateY(-6.28em); }
+            84% { transform: translateY(0.314em); }
+            92% { transform: translateY(-0.126em); }
+            100% { transform: translateY(0em); }
+        }
+        @keyframes ld-arm {
+            0% { transform: translateY(0em) scaleY(1); }
+            12% { transform: translateY(0.44em) scaleY(0.944); }
+            34% { transform: translateY(-6.594em) scaleY(1.84); }
+            44% { transform: translateY(-6.154em) scaleY(1.784); }
+            52% { transform: translateY(-6.28em) scaleY(1.8); }
+            64% { transform: translateY(-6.28em) scaleY(1.8); }
+            84% { transform: translateY(0.314em) scaleY(0.96); }
+            92% { transform: translateY(-0.126em) scaleY(1.016); }
+            100% { transform: translateY(0em) scaleY(1); }
+        }
+        @keyframes ld-hand {
+            0% { transform: translateY(0em); }
+            12% { transform: translateY(0.272em); }
+            34% { transform: translateY(-4.074em); }
+            44% { transform: translateY(-3.802em); }
+            52% { transform: translateY(-3.88em); }
+            64% { transform: translateY(-3.88em); }
+            84% { transform: translateY(0.194em); }
+            92% { transform: translateY(-0.078em); }
+            100% { transform: translateY(0em); }
+        }
+        /* --- без анимаций: Нуб замирает вытянутым, совет — первый --- */
+        @media (prefers-reduced-motion: reduce) {
+            #loading-screen *, #loading-screen *::before, #loading-screen *::after { animation: none !important; }
+            .ld-leg { transform: scaleY(2.3); }
+            .ld-belt { transform: translateY(-3.9em); }
+            .ld-torso { transform: translateY(-3.9em) scaleY(1.7); }
+            .ld-flag, .ld-sleeve, .ld-head { transform: translateY(-6.28em); }
+            .ld-arm { transform: translateY(-6.28em) scaleY(1.8); }
+            .ld-hand { transform: translateY(-3.88em); }
+            .ld-plus { opacity: 1; }
+            .ld-tips span:first-child { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="world3d"></canvas>
+    <div id="loading-screen" role="status" aria-busy="true" aria-live="polite">
+        <div class="ld-bg" aria-hidden="true">
+            <div class="ld-glow"></div>
+            <div class="ld-rays"></div>
+            <div class="ld-cloud ld-c1"><i></i></div>
+            <div class="ld-cloud ld-c2"><i></i></div>
+            <div class="ld-cloud ld-c3"><i></i></div>
+            <div class="ld-cloud ld-c4"><i></i></div>
+            <div class="ld-hill a"></div>
+            <div class="ld-hill b"></div>
+        </div>
+        <div class="ld-stage">
+            <div class="ld-brand"><h1 id="loading-title">Стань выше: бег и бокс</h1></div>
+            <div class="ld-hero" aria-hidden="true">
+                <div class="ld-world">
+                    <div class="ld-podium"></div>
+                    <div class="ld-ruler"><b>5</b><b>10</b><b>15</b></div>
+                    <div class="ld-flag"></div>
+                    <div class="ld-noob">
+                        <div class="ld-leg l"></div><div class="ld-leg r"></div>
+                        <div class="ld-shoe l"></div><div class="ld-shoe r"></div>
+                        <div class="ld-torso"></div>
+                        <div class="ld-belt"></div>
+                        <div class="ld-arm l"></div><div class="ld-arm r"></div>
+                        <div class="ld-sleeve l"></div><div class="ld-sleeve r"></div>
+                        <div class="ld-hand l"></div><div class="ld-hand r"></div>
+                        <div class="ld-head">
+                            <i class="ld-hair"></i><i class="ld-tuft"></i><i class="ld-tuft t2"></i><i class="ld-tuft t3"></i>
+                            <i class="ld-phones"></i><i class="ld-cup l"></i><i class="ld-cup r"></i>
+                            <i class="ld-brow l"></i><i class="ld-brow r"></i>
+                            <i class="ld-eye l"></i><i class="ld-eye r"></i>
+                            <i class="ld-blush l"></i><i class="ld-blush r"></i>
+                            <i class="ld-mouth"></i>
+                        </div>
+                    </div>
+                    <div class="ld-plus"></div>
+                </div>
+            </div>
+            <div class="ld-foot">
+                <div class="ld-meter">
+                    <div class="loading-bar" id="loading-meter" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="loading-progress"></div></div>
+                    <div id="loading-percent">0%</div>
+                </div>
+                <div class="loading-text" data-t="loading">Загрузка…</div>
+                <button id="loading-retry" type="button" hidden></button>
+                <div class="ld-tips" aria-hidden="true">
+                    <span data-t="load.tip1">Синие ворота — выше, зелёные — шире</span>
+                    <span data-t="load.tip2">Тарань стены — но каждая отнимает рост</span>
+                    <span data-t="load.tip3">В бою с боссом жми чаще!</span>
+                    <span data-t="load.tip4">Свайп — отскок от удара босса</span>
+                    <span data-t="load.tip5">6 хороших ворот — режим гиганта</span>
+                </div>
+            </div>
+        </div>
+        <img class="engine-mark" src="assets/branding/lory-engine-160.webp" alt="" aria-hidden="true">
+    </div>
+
+    <!-- Порядок значим: Constants.js первым (остальные читают его глобалы), main.js последним -->
+    <script src="https://games.pikabu.ru/sdk/sdk.js"></script>
+<script src="js/Constants.js?v=0.1.8-1dfa851f"></script>
+    <script src="libs/simplex-noise.js?v=0.1.8-1dfa851f"></script>
+    <script src="libs/babylon.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/Maps.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/Maps2D.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/World2D.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/World3D.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/Terrain3D.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/CameraControl.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/Model3D.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/ModelFBX.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/ModelOBJ.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/ModelGLTF.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/Location3D.js?v=0.1.8-1dfa851f"></script>
+    <!-- world-a: Rig.js (риги и клипы), Nav.js (коллизии, высоты, пути) -->
+    <script src="js/Rig.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/Nav.js?v=0.1.8-1dfa851f"></script>
+    <!-- 1.30 мир (world-b): уровни графики и время суток -->
+    <script src="js/Quality.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/Sky3D.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/Pause.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/Sound.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/Lang.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/Platform.js?v=0.1.8-1dfa851f"></script>
+    <!-- Адаптеры площадок (Platform.register): Playgama; игра добавляет свои здесь же, после Platform.js -->
+    <script src="js/PlatformPlaygama.js?v=0.1.8-1dfa851f"></script>
+    <!-- Адаптеры Telegram Mini App, CrazyGames, Android-обёртки и сборки test (detect() выбирает площадку) -->
+    <script src="js/PlatformTelegram.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/PlatformCrazy.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/PlatformPikabu.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/PlatformAndroid.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/PlatformTest.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/LoadingScreen.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/ParticleFX.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/Telemetry.js?v=0.1.8-1dfa851f"></script>
+    <!-- 1.30 systems-b: магазин косметики, Daily Gift, колесо фортуны (логика без UI, опт-ин: Shop/DailyGift/Wheel.init в Game.js) -->
+    <script src="js/Shop.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/DailyGift.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/Wheel.js?v=0.1.8-1dfa851f"></script>
+    <!-- 1.30 systems-a: ввод, раскладка HUD, обучение. Opt-in: игра сама зовёт Input.init / HudLayout.init / Tutorial.init -->
+    <script src="js/HudLayout.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/Input.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/Tutorial.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/LiveWater3D.js?v=0.1.8-1dfa851f"></script>
+    <!-- Скрипты игры (js/Game.js и её модули) — здесь, до main.js -->
+    <script src="js/GameMath.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/GameNoob.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/GameMotionDB.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/GameMotion.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/GamePhysics.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/GameRagdoll.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/GameShopData.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/GameCosmetics.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/GameShopUI.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/GameLevel.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/GameRunner.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/GameFight.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/GameCamera.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/GameUI.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/Game.js?v=0.1.8-1dfa851f"></script>
+    <script src="js/main.js?v=0.1.8-1dfa851f"></script>
+    <script>
+        // Игровая область: долгий тап и ПКМ не открывают меню браузера, картинки не
+        // тянутся, текст не выделяется — кроме настоящих полей ввода.
+        (() => {
+            const isField = t => t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable);
+            for (const type of ['contextmenu', 'dragstart', 'selectstart']) {
+                document.addEventListener(type, e => { if (!isField(e.target)) e.preventDefault(); });
+            }
+        })();
+    </script>
+</body>
+</html>
