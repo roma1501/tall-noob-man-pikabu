@@ -18,7 +18,7 @@ const FX_MAX_PARTICLES = 6000;       // общий бюджет ёмкости �
 const FX_MOBILE_SCALE = 0.55;        // плотность и бюджет частиц на мобильных
 const GAME_ID = 'tall-noob-run';          // латиница, цифры, -: имя архива dist/<GAME_ID>-<платформа>-<версия>.zip и ключей сохранений
 const GAME_TITLE = 'Стань выше: бег и бокс';     // название игры: заголовок вкладки браузера
-const GAME_VERSION = '0.1.8';         // версия билда: ?v= у скриптов (tools/build.mjs) и имя архива
+const GAME_VERSION = '0.1.9';         // версия билда: ?v= у скриптов (tools/build.mjs) и имя архива
 const GAME_PLATFORM = 'pikabu';          // 'web' | 'yandex' | 'playables' | 'playgama' | 'telegram' | 'crazygames' | 'android' | 'test' — сборка ставит свою (build.bat <платформа>)
 const GAME_LANG = 'ru';               // язык интерфейса: сборка ставит ru (yandex) или en (playables); Lang.js
 // Название игры по площадке: { <сборка>: 'Название' } — сборка ставит его в GAME_TITLE, <title> и заставку загрузки
